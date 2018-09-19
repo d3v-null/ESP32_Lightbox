@@ -166,6 +166,7 @@ void loop() {
             dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 1] = rgb[0] ;
             dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 2] = rgb[2] ;
         }
+        break;
     case FIRE:
         for (int s = 0; s<NUMBER_OF_STRIPS; s++){
             // only a 50% chance that the strip will be updated (adds randomness)
@@ -204,12 +205,15 @@ void loop() {
             dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 1] = rgb[0] ;
             dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 2] = rgb[2] ;
         }
+        break;
     case SOLID:
+    default:
         for (int s = 0; s<NUMBER_OF_STRIPS; s++){
             dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 0] = rgb[1] ;
             dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 1] = rgb[0] ;
             dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 2] = rgb[2] ;
         }
+        break;
     };
 
     copyDMXToOutput();
