@@ -29,11 +29,16 @@ enum animation {
 // breaks between animation frames
 #define ANIM_SPEED 50
 
-#define BRIGHTNESS 50
+#define BRIGHTNESS 100
 // full saturation
 #define SATURATION 255
-// amount of fire noise
-#define FIRE_NOISE 5
+// temperatures above this range cool exponentially
+#define FIRE_TEMP 100
+// how noisy the fire is when below FIRE_TEMP (1-64)
+#define FIRE_NOISE (FIRE_TEMP / 10)
+#define FIRE_DECAY 1.15
+// Minimum amount a jump will increase the temperature by
+#define FIRE_FLARE_JUMP 75
 
 uint8_t level;
 uint8_t dmxbuffer[DMX_MAX_FRAME];
@@ -42,8 +47,6 @@ uint8_t dmxbuffer[DMX_MAX_FRAME];
 uint8_t hsv[3];
 // temporary storage of RGB colour space value for animations
 uint8_t rgb[3];
-// temporarily store a temperature value
-uint8_t temperature;
 // temperatures of each strip
 uint8_t *temperatures;
 // Average temperature
@@ -123,7 +126,7 @@ void temp2RGB(uint8_t temperature) {
     // stolen from https://github.com/techinc/lewd/blob/master/animations/fire.py
     float x = temperature / 255.0;
     float r = pow(x, 1.0) * 3.0;
-    float g = pow(x, 1.5) * 2.0;
+    float g = pow(x, 1.5) * 1.5;
     float b = pow(x, 3.0);
     if (r > 1.0) r = 1.0;
     if (g > 1.0) g = 1.0;
@@ -161,19 +164,21 @@ void loop() {
             // (I know there's a hack way of doing this but this is more readable)
             average_temp = 0;
             for (int s = 0; s<NUMBER_OF_STRIPS; s++){
+                Serial.print(temperatures[s]);
+                Serial.print(' ');
                 average_temp += temperatures[s] / NUMBER_OF_STRIPS;
             }
             Serial.println(average_temp);
 
-            if (random(100) < 5 && average_temp < 128) {
-                // 5% chance of fire "flaring" if the fire is not hot enough
-                temperatures[s] = random(200, 255);
+            if (random(100) < 10 && average_temp < 128) {
+                // 10% chance of fire "flaring" if the fire is not hot enough
+                temperatures[s] = random(FIRE_FLARE_JUMP, min(FIRE_FLARE_JUMP* 2, 255));
             } else {
                 // otherwise business as usual
 
                 // if fire is hot, then quickly cool it down, exponentially
-                if (temperatures[s] > 50) {
-                    temperatures[s] = (uint8_t) temperatures[s] / (1.2);
+                if (temperatures[s] > FIRE_TEMP) {
+                    temperatures[s] = (uint8_t) temperatures[s] / (FIRE_DECAY);
                 } else {
                     // 50-50 chance it will go up or down by up to FIRE_NOISE
                     if (random(2) < 1) {
