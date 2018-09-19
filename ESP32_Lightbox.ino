@@ -145,7 +145,7 @@ void setup() {
     temperatures = (uint8_t*) malloc( NUMBER_OF_STRIPS * sizeof(uint8_t) );
 
     for (int s = 0; s<NUMBER_OF_STRIPS; s++){
-        temperatures[s] = 0;
+        temperatures[s] = FIRE_TEMP;
     }
     rgb[0] = BRIGHTNESS; rgb[1] = BRIGHTNESS; rgb[2] = BRIGHTNESS;
 }
@@ -183,7 +183,7 @@ void loop() {
 
             if (random(100) < 10 && average_temp < 128) {
                 // 10% chance of fire "flaring" if the fire is not hot enough
-                temperatures[s] = random(FIRE_FLARE_JUMP, min(FIRE_FLARE_JUMP* 2, 255));
+                temperatures[s] = random(FIRE_FLARE_JUMP, _min(FIRE_FLARE_JUMP* 2, 255));
             } else {
                 // otherwise business as usual
 
