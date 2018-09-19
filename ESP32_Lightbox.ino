@@ -1,47 +1,64 @@
 /**************************************************************************/
 /*!
-    @file     outputTest.ino
-    @author   Claude Heintz
-    @license  BSD (see LXESP32DMX LICENSE)
-    @copyright 2017 by Claude Heintz
+    @file     ESP32_Lightbox.ino
+    @author   Derwent McElhinney
 
-    Simple Fade test of ESP32 DMX Driver
-    @section  HISTORY
-
-    v1.00 - First release
+    A DMX master for controlling lighting that can be re-programmed over wifi
+    and controlled over bluetooth
 */
 /**************************************************************************/
 #include <LXESP32DMX.h>
 #include "esp_task_wdt.h"
+// #include <WiFi.h>
+// #include <ESPmDNS.h>
+// #include <WiFiUdp.h>
+// #include <ArduinoOTA.h>
+
+/**
+ * DMX Stuff
+ */
+uint8_t dmxbuffer[DMX_MAX_FRAME];
 
 #define DMX_DIRECTION_PIN 21
 #define DMX_SERIAL_OUTPUT_PIN 17
 
 #define FIRST_DMX_ADDR 1
 
-/* Animation stuff */
+void copyDMXToOutput(void) {
+    xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
+    for (int i=1; i<DMX_MAX_FRAME; i++) {
+    	ESP32DMX.setSlot(i , dmxbuffer[i]);
+    }
+    xSemaphoreGive( ESP32DMX.lxDataLock );
+}
+
+/**
+ * Animation stuff
+ */
+
+// All possible animation modes
 enum animation {
+    SOLID,
     RAINBOW,
     FIRE
 };
+// The total number of frames in looping animations
 #define MAX_FRAME 255
 #define NUMBER_OF_STRIPS 5
-// breaks between animation frames
+// number of ticks (15ms) to wait between animation frames
 #define ANIM_SPEED 50
-
+// Brightness used by some animation modes
 #define BRIGHTNESS 100
-// full saturation
+// Saturation used by some animation modes
 #define SATURATION 255
-// temperatures above this range cool exponentially
-#define FIRE_TEMP 100
-// how noisy the fire is when below FIRE_TEMP (1-64)
+// in fire mode, temperatures above this range cool exponentially
+#define FIRE_TEMP 80
+// in fire mode, how noisy the fire is when below FIRE_TEMP
 #define FIRE_NOISE (FIRE_TEMP / 10)
+// in fire mode, how quickly the fire decays
 #define FIRE_DECAY 1.15
-// Minimum amount a jump will increase the temperature by
+// in fire mode, Minimum amount a jump will increase the temperature by
 #define FIRE_FLARE_JUMP 75
-
-uint8_t level;
-uint8_t dmxbuffer[DMX_MAX_FRAME];
 
 // temporary storage of HSV colour space value for animations
 uint8_t hsv[3];
@@ -55,42 +72,6 @@ uint8_t average_temp;
 uint8_t animation;  // the current animation number
 uint8_t frame;      // the current frame of the animation
 
-void setup() {
-    Serial.begin(115200);
-    Serial.print("setup");
-
-    pinMode(DMX_DIRECTION_PIN, OUTPUT);
-    digitalWrite(DMX_DIRECTION_PIN, HIGH);
-
-    pinMode(DMX_SERIAL_OUTPUT_PIN, OUTPUT);
-    ESP32DMX.startOutput(DMX_SERIAL_OUTPUT_PIN);
-    Serial.println("setup complete");
-
-    frame = 0;
-    animation = 1;
-
-    esp_task_wdt_feed();
-
-    temperatures = (uint8_t*) malloc( NUMBER_OF_STRIPS * sizeof(uint8_t) );
-
-    for (int s = 0; s<NUMBER_OF_STRIPS; s++){
-        temperatures[s] = 0;
-    }
-}
-
-void copyDMXToOutput(void) {
-  xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
-	for (int i=1; i<DMX_MAX_FRAME; i++) {
-    	ESP32DMX.setSlot(i , dmxbuffer[i]);
-   }
-   xSemaphoreGive( ESP32DMX.lxDataLock );
-}
-
-/************************************************************************
-
-  The main loop fades the levels of addresses 1,7,8,510,511, and 512 from zero->full
-
-*************************************************************************/
 
 void hsv2rgb(){
     // populate the global RGB storage from the global HSV storage
@@ -138,6 +119,35 @@ void temp2RGB(uint8_t temperature) {
 
 void gammacorrectRGB(){
     // TODO: gamme correct the values stored in the global RBB storage
+}
+
+
+/**
+ * Wifi Stuff
+ */
+
+void setup() {
+    Serial.begin(115200);
+    Serial.print("setup");
+
+    pinMode(DMX_DIRECTION_PIN, OUTPUT);
+    digitalWrite(DMX_DIRECTION_PIN, HIGH);
+
+    pinMode(DMX_SERIAL_OUTPUT_PIN, OUTPUT);
+    ESP32DMX.startOutput(DMX_SERIAL_OUTPUT_PIN);
+    Serial.println("setup complete");
+
+    frame = 0;
+    animation = FIRE;
+
+    esp_task_wdt_feed();
+
+    temperatures = (uint8_t*) malloc( NUMBER_OF_STRIPS * sizeof(uint8_t) );
+
+    for (int s = 0; s<NUMBER_OF_STRIPS; s++){
+        temperatures[s] = 0;
+    }
+    rgb[0] = BRIGHTNESS; rgb[1] = BRIGHTNESS; rgb[2] = BRIGHTNESS;
 }
 
 void loop() {
@@ -190,6 +200,12 @@ void loop() {
                 }
             }
             temp2RGB(temperatures[s]);
+            dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 0] = rgb[1] ;
+            dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 1] = rgb[0] ;
+            dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 2] = rgb[2] ;
+        }
+    case SOLID:
+        for (int s = 0; s<NUMBER_OF_STRIPS; s++){
             dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 0] = rgb[1] ;
             dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 1] = rgb[0] ;
             dmxbuffer[FIRST_DMX_ADDR + (s * 3) + 2] = rgb[2] ;
