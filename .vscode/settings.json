@@ -1,0 +1,6 @@
+{
+    "terminal.integrated.env.osx": {
+        "PATH": "/Users/derwent/.platformio/penv/bin:/Users/derwent/.platformio/penv:/Users/derwent/.rbenv/shims:/usr/local/opt/openssl/bin:/usr/local/opt/php@5.6/bin:/usr/local/Cellar/pyenv-virtualenv/1.1.1/shims:/Users/derwent/.pyenv/shims:/Users/derwent/.pyenv/shims:/Users/derwent/.pyenv:/usr/local/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/X11/bin:/Library/TeX/texbin:/Applications/Wireshark.app/Contents/MacOS:/opt/gnu/sbin:/opt/gnu/bin:/Users/derwent/esp/xtensa-esp32-elf/bin:/opt/local/bin:/opt/local/sbin:/Users/derwent/.vim/bin:/Users/derwent/.local/bin:/Users/derwent/Library/Android/sdk/platform-tools:/Users/derwent/.rvm/bin:/Library/TeX/texbin:/Users/derwent/go/bin",
+        "PLATFORMIO_CALLER": "vscode"
+    }
+}
