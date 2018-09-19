@@ -129,9 +129,6 @@ void gammacorrectRGB(){
 const char* ssid = "YOUR_SSID_HERE";
 const char* password = "YOUR_PASS_HERE";
 
-// const char* ssid = "DerwenTomato24";
-// const char* password = "mont-quince-raptor";
-
 // number of millis between checking
 #define OTA_PERIOD 200
 unsigned long last_ota = 0;
