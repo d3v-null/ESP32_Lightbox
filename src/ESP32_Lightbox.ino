@@ -53,7 +53,7 @@ enum animation {
 // number of ticks (15ms) to wait between animation frames
 #define ANIM_SPEED 50
 // Brightness used by some animation modes
-#define BRIGHTNESS 100
+uint8_t brightness;
 // Saturation used by some animation modes
 #define SATURATION 255
 // in fire mode, temperatures above this range cool exponentially
@@ -117,9 +117,9 @@ void temp2RGB(uint8_t temperature) {
     if (r > 1.0) r = 1.0;
     if (g > 1.0) g = 1.0;
     if (b > 1.0) b = 1.0;
-    rgb[0] = (uint8_t)(r*BRIGHTNESS);
-    rgb[1] = (uint8_t)(g*BRIGHTNESS);
-    rgb[2] = (uint8_t)(b*BRIGHTNESS);
+    rgb[0] = (uint8_t)(r*brightness);
+    rgb[1] = (uint8_t)(g*brightness);
+    rgb[2] = (uint8_t)(b*brightness);
 }
 
 void gammacorrectRGB(){
@@ -224,6 +224,67 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 
         Serial.println();
         Serial.println("*********");
+
+        if (rxValue.length() >= 5 && rxValue.substr(0,2) == "!B") {
+            // Button press
+
+            // button 1
+            // 	!B11:
+            // 	!B10;
+            // button 2
+            // 	!B219
+            // 	!B20:
+            // Button 3
+            // 	!B318
+            // 	!B309
+            // Button 4
+            // 	!B417
+            // 	!B408
+            // Up
+            // 	!B516
+            // 	!B507
+            // Right
+            // 	!B813
+            // 	!B804
+            // Down
+            // 	!B615
+            // 	!B606
+            // Left
+            // 	!B714
+            // 	!B705
+
+            if (rxValue.substr(2,5) == "11:") {
+                // Serial.println("Button press 1");
+                animation = 0;
+            }
+            if (rxValue.substr(2,5) == "219") {
+                // Serial.println("Button press 2");
+                animation = 1;
+            }
+            if (rxValue.substr(2,5) == "318") {
+                // Serial.println("Button press 3");
+                animation = 2;
+            }
+            if (rxValue.substr(2,5) == "417") {
+                // Serial.println("Button press 4");
+                animation = 3;
+            }
+            if (rxValue.substr(2,5) == "516") {
+                // Serial.println("Button press up");
+                brightness = (brightness + 16) % 256;
+            }
+            if (rxValue.substr(2,5) == "813") {
+                // Serial.println("Button press right");
+            }
+            if (rxValue.substr(2,5) == "615") {
+                // Serial.println("Button press down");
+                brightness = (brightness - 16) % 256;
+            }
+            if (rxValue.substr(2,5) == "714") {
+                // Serial.println("Button press left");
+            }
+        }
+
       }
     }
 };
@@ -248,13 +309,14 @@ void setup() {
 
     frame = 0;
     animation = FIRE;
+    brightness = 100;
 
     temperatures = (uint8_t*) malloc( NUMBER_OF_STRIPS * sizeof(uint8_t) );
 
     for (int s = 0; s<NUMBER_OF_STRIPS; s++) {
         temperatures[s] = FIRE_TEMP;
     }
-    rgb[0] = BRIGHTNESS; rgb[1] = BRIGHTNESS; rgb[2] = BRIGHTNESS;
+    rgb[0] = brightness; rgb[1] = brightness; rgb[2] = brightness;
 
     // BLE
 
@@ -332,11 +394,11 @@ void loop() {
         //     Serial.write(SerialBT.read());
         // }
 
-        if (deviceConnected) {
-            pTxCharacteristic->setValue(&txValue, 1);
-            pTxCharacteristic->notify();
-            txValue++;
-    	}
+        // if (deviceConnected) {
+        //     pTxCharacteristic->setValue(&txValue, 1);
+        //     pTxCharacteristic->notify();
+        //     txValue++;
+    	// }
 
         // disconnecting
         if (!deviceConnected && oldDeviceConnected) {
@@ -361,7 +423,7 @@ void loop() {
     switch( animation ) {
         case RAINBOW:
         hsv[1] = SATURATION;
-        hsv[2] = BRIGHTNESS;
+        hsv[2] = brightness;
         for (int s = 0; s<NUMBER_OF_STRIPS; s++) {
             // set hue
             hsv[0] = (frame + (s * MAX_FRAME / NUMBER_OF_STRIPS)) % MAX_FRAME;
