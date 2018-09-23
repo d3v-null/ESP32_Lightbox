@@ -13,6 +13,11 @@ and controlled over bluetooth
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+// #include "BluetoothSerial.h"
 
 /**
 * DMX Stuff
@@ -126,37 +131,15 @@ void gammacorrectRGB(){
 * Wifi Stuff
 */
 
-const char* ssid = "YOUR_SSID_HERE";
-const char* password = "YOUR_PASS_HERE";
+#define ENABLE_OTA 1
+
+
 
 // number of millis between checking
-#define OTA_PERIOD 200
+#define OTA_PERIOD 470
 unsigned long last_ota = 0;
 
-/**
- *  Setup
- */
-
-void setup() {
-    Serial.begin(115200);
-    Serial.print("setup");
-
-    pinMode(DMX_DIRECTION_PIN, OUTPUT);
-    digitalWrite(DMX_DIRECTION_PIN, HIGH);
-
-    pinMode(DMX_SERIAL_OUTPUT_PIN, OUTPUT);
-    ESP32DMX.startOutput(DMX_SERIAL_OUTPUT_PIN);
-
-    frame = 0;
-    animation = FIRE;
-
-    temperatures = (uint8_t*) malloc( NUMBER_OF_STRIPS * sizeof(uint8_t) );
-
-    for (int s = 0; s<NUMBER_OF_STRIPS; s++) {
-        temperatures[s] = FIRE_TEMP;
-    }
-    rgb[0] = BRIGHTNESS; rgb[1] = BRIGHTNESS; rgb[2] = BRIGHTNESS;
-
+void setup_ota() {
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
     while (WiFi.waitForConnectResult() != WL_CONNECTED) {
@@ -196,6 +179,129 @@ void setup() {
     Serial.println("Ready");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+}
+
+/**
+ * BLE Stuff
+ */
+
+#define ENABLE_BLE 1
+
+#define BLE_PERIOD 530
+unsigned long last_ble = 0;
+
+// BluetoothSerial SerialBT;
+
+BLEServer *pServer = NULL;
+BLECharacteristic * pTxCharacteristic;
+bool deviceConnected = false;
+bool oldDeviceConnected = false;
+uint8_t txValue = 0;
+
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E" // UART service UUID
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+    };
+
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+    }
+};
+
+class MyCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      std::string rxValue = pCharacteristic->getValue();
+
+      if (rxValue.length() > 0) {
+        Serial.println("*********");
+        Serial.print("Received Value: ");
+        for (int i = 0; i < rxValue.length(); i++)
+          Serial.print(rxValue[i]);
+
+        Serial.println();
+        Serial.println("*********");
+      }
+    }
+};
+
+/**
+ *  Setup
+ */
+
+void setup() {
+    Serial.begin(115200);
+    Serial.print("setup");
+
+    // DMX
+
+    pinMode(DMX_DIRECTION_PIN, OUTPUT);
+    digitalWrite(DMX_DIRECTION_PIN, HIGH);
+
+    pinMode(DMX_SERIAL_OUTPUT_PIN, OUTPUT);
+    ESP32DMX.startOutput(DMX_SERIAL_OUTPUT_PIN);
+
+    // Animation
+
+    frame = 0;
+    animation = FIRE;
+
+    temperatures = (uint8_t*) malloc( NUMBER_OF_STRIPS * sizeof(uint8_t) );
+
+    for (int s = 0; s<NUMBER_OF_STRIPS; s++) {
+        temperatures[s] = FIRE_TEMP;
+    }
+    rgb[0] = BRIGHTNESS; rgb[1] = BRIGHTNESS; rgb[2] = BRIGHTNESS;
+
+    // BLE
+
+    #if ENABLE_BLE
+
+    Serial.println("Starting BLE setup!");
+
+    // if(!SerialBT.begin("ESP32-UART")){
+    //     Serial.println("An error occurred initializing Bluetooth");
+    // }
+
+    BLEDevice::init("ESP32 UART Service");
+
+    pServer = BLEDevice::createServer();
+    pServer->setCallbacks(new MyServerCallbacks());
+
+    // Create the BLE Service
+    BLEService *pService = pServer->createService(SERVICE_UUID);
+
+    // Create a BLE Characteristic
+    pTxCharacteristic = pService->createCharacteristic(
+  										CHARACTERISTIC_UUID_TX,
+  										BLECharacteristic::PROPERTY_NOTIFY
+  									);
+
+    pTxCharacteristic->addDescriptor(new BLE2902());
+
+    BLECharacteristic * pRxCharacteristic = pService->createCharacteristic(
+  											 CHARACTERISTIC_UUID_RX,
+  											BLECharacteristic::PROPERTY_WRITE
+  										);
+
+    pRxCharacteristic->setCallbacks(new MyCallbacks());
+    pService->start();
+    pServer->getAdvertising()->addServiceUUID(pService->getUUID());
+    pServer->getAdvertising()->start();
+    Serial.println("Characteristic defined! Now you can read it in your phone!");
+
+    #endif
+
+    // WIFI
+
+    #if ENABLE_OTA
+
+    setup_ota();
+
+    #endif
 
 }
 
@@ -204,11 +310,51 @@ void setup() {
  */
 
 void loop() {
+
+    #if ENABLE_OTA
+
     if (millis() - last_ota > OTA_PERIOD) {
         last_ota = millis();
-        Serial.println("doing update");
+        // Serial.println("handling OTA");
         ArduinoOTA.handle();
     }
+
+    #endif
+
+    #if ENABLE_BLE
+
+    if (millis() - last_ble > BLE_PERIOD) {
+        last_ble = millis();
+
+        // Serial.println("handling BLE");
+
+        // while(SerialBT.available()){
+        //     Serial.write(SerialBT.read());
+        // }
+
+        if (deviceConnected) {
+            pTxCharacteristic->setValue(&txValue, 1);
+            pTxCharacteristic->notify();
+            txValue++;
+    	}
+
+        // disconnecting
+        if (!deviceConnected && oldDeviceConnected) {
+            delay(500); // give the bluetooth stack the chance to get things ready
+            pServer->startAdvertising(); // restart advertising
+            Serial.println("start advertising");
+            oldDeviceConnected = deviceConnected;
+        }
+        // connecting
+        if (deviceConnected && !oldDeviceConnected) {
+    		// do stuff here on connecting
+            oldDeviceConnected = deviceConnected;
+        }
+    }
+
+    #endif
+
+    // return;
 
     frame = (frame + 1) % MAX_FRAME;
 
@@ -278,5 +424,5 @@ void loop() {
     copyDMXToOutput();
     delay(ANIM_SPEED);
 
-    Serial.println("loop end");
+    // Serial.println("loop end");
 }
